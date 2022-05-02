@@ -27,11 +27,6 @@ env:
   AZURE_WEBAPP_NAME: app-wordle-multiplayer-dev-001 # set this to your application's name
   AZURE_WEBAPP_PACKAGE_PATH: "./frontend" # set this to the path to your web app project, defaults to the repository root
   NODE_VERSION: "16.x" # set this to the node version to use
-  ARM_CLIENT_ID: ${{secrets.ARM_CLIENT_ID}}
-  ARM_CLIENT_SECRET: ${{secrets.ARM_CLIENT_SECRET}}
-  ARM_TENANT_ID: ${{secrets.ARM_TENANT_ID}}
-  ARM_SUBSCRIPTION_ID: ${{secrets.ARM_SUBSCRIPTION_ID}}
-  TF_VAR_BACKEND_KEY: ${{secrets.TF_VAR_BACKEND_KEY}}
 
 jobs:
   build:
