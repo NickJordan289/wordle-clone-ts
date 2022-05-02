@@ -47,7 +47,7 @@ jobs:
           
         # Zip artifacts to speed things up
       - name: Zip artifact for deployment
-        run: zip backend-release.zip ./${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/* -qr
+        run: zip backend-release.zip ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/* -qr
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v3
