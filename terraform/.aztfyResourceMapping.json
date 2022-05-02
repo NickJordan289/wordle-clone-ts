@@ -1,0 +1,22 @@
+{
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer": "azurerm_resource_group.res-68",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev": "azurerm_cosmosdb_account.res-0",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlDatabases/ToDoList": "azurerm_cosmosdb_sql_database.res-7",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlDatabases/ToDoList/containers/Items": "azurerm_cosmosdb_sql_container.res-62",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlDatabases/Wordle": "azurerm_cosmosdb_sql_database.res-8",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlDatabases/Wordle/containers/Games": "azurerm_cosmosdb_sql_container.res-63",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlDatabases/Wordle/containers/Users": "azurerm_cosmosdb_sql_container.res-64",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001": "azurerm_cosmosdb_sql_role_definition.res-9",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-wordle-multiplayer-dev/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002": "azurerm_cosmosdb_sql_role_definition.res-10",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.SignalRService/WebPubSub/wps-wordle-multiplayer-dev": "azurerm_web_pubsub.res-2",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.SignalRService/WebPubSub/wps-wordle-multiplayer-dev/hubs/sample_funcchat": "azurerm_web_pubsub_hub.res-24",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Storage/storageAccounts/stwordlemultiplayer001": "azurerm_storage_account.store1",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/serverfarms/ASP-wordlemultiplayer-8d7a": "azurerm_app_service_plan.res-4",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/serverfarms/asp-wordle-multiplayer-dev": "azurerm_app_service_plan.res-5",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/sites/app-wordle-multiplayer-dev-001": "azurerm_app_service.app",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/sites/app-wordle-multiplayer-dev-001/hostNameBindings/app-wordle-multiplayer-dev-001.azurewebsites.net": "azurerm_app_service_custom_hostname_binding.res-60",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/sites/func-wordle-multiplayer-dev": "azurerm_function_app.func",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/Microsoft.Web/sites/func-wordle-multiplayer-dev/hostNameBindings/func-wordle-multiplayer-dev.azurewebsites.net": "azurerm_app_service_custom_hostname_binding.res-61",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/microsoft.alertsmanagement/smartdetectoralertrules/failure anomalies - func-wordle-multiplayer-dev": "azurerm_monitor_smart_detector_alert_rule.res-6",
+	"/subscriptions/c490a576-4e4b-4831-82f9-f131843936bf/resourceGroups/wordle-multiplayer/providers/microsoft.insights/components/func-wordle-multiplayer-dev": "azurerm_application_insights.res-1"
+}
