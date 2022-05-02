@@ -27,9 +27,58 @@ env:
   AZURE_WEBAPP_NAME: app-wordle-multiplayer-dev-001 # set this to your application's name
   AZURE_WEBAPP_PACKAGE_PATH: "./frontend" # set this to the path to your web app project, defaults to the repository root
   NODE_VERSION: "16.x" # set this to the node version to use
+  AZURE_FUNCTIONAPP_NAME: func-wordle-multiplayer-dev  # set this to your application's name
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: "./backend" # set this to the path to your function app project, defaults to the repository root
+  DOTNET_VERSION: '2.2.402'              # set this to the dotnet version to use
 
 jobs:
-  build:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 'Resolve Project Dependencies Using Dotnet'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet build --configuration Release --output ./output
+          popd
+          
+        # Zip artifacts to speed things up
+      - name: Zip artifact for deployment
+        run: zip backend-release.zip ./${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/* -qr
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: func-app
+          path: backend-release.zip
+  
+  deploy-backend:
+    needs: build-backend
+    runs-on: ubuntu-latest
+    environment:
+      name: "Production"
+      
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v2
+        with:
+          name: func-app
+    
+      - name: 'Run Azure Functions Action'
+        uses: Azure/functions-action@v1
+        id: fa
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: backend-release.zip
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+  build-frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -46,6 +95,7 @@ jobs:
         run: |
           npm install
           npm run build
+          
       # Zip artifacts to speed things up
       - name: Zip artifact for deployment
         run: zip release.zip ./${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/* -qr
@@ -56,8 +106,8 @@ jobs:
           name: node-app
           path: release.zip
 
-  deploy:
-    needs: build
+  deploy-frontend:
+    needs: build-frontend
     runs-on: ubuntu-latest
     environment:
       name: "Production"
