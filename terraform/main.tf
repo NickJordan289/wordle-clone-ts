@@ -70,8 +70,8 @@ resource "azurerm_function_app" "func" {
   storage_account_access_key = azurerm_storage_account.store1.primary_access_key
   storage_account_name       = azurerm_storage_account.store1.name
   tags = {
-    "hidden-link: /app-insights-instrumentation-key" = azurerm_application_insights.app-func.instrumentation_key
-    "hidden-link: /app-insights-resource-id"         = azurerm_application_insights.app-func.id
+    "hidden-link: /app-insights-instrumentation-key" = azurerm_application_insights.appi-func.instrumentation_key
+    "hidden-link: /app-insights-resource-id"         = azurerm_application_insights.appi-func.id
   }
   version = "~3"
   depends_on = [
