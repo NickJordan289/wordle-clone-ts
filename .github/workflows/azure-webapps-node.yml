@@ -52,6 +52,11 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: true
          
+      - name: Install PowerShell
+        uses: efrecon/gh-action-setup-powershell@main
+      - name: Print out PowerShell Version
+        run: pwsh --version
+
       - name: Azure PowerShell Action
         uses: Azure/powershell@v1
         with:
