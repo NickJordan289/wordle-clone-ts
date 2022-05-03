@@ -48,6 +48,12 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: true
          
+      - name: Azure PowerShell Action
+        uses: Azure/powershell@v1
+        with:
+          inlineScript: Get-AzVM -ResourceGroupName "wordle-multiplayer"
+          azPSVersion: 3.1.0
+         
       - name: 'Terraform Init'
         uses: hashicorp/terraform-github-actions@master
         with:
