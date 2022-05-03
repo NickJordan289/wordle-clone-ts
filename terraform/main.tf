@@ -32,6 +32,10 @@ resource "azurerm_app_service" "app" {
   app_service_plan_id = azurerm_app_service_plan.asp-web.id
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
+  site_config {
+    linux_fx_version = "NODE|16-lts"
+    app_command_line = "npx serve -s build/"
+  }
   depends_on = [
     azurerm_app_service_plan.asp-web,
   ]
