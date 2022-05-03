@@ -18,11 +18,12 @@ resource "azurerm_web_pubsub_hub" "psh" {
   web_pubsub_id = azurerm_web_pubsub.wps.id
   event_handler {
     system_events      = ["connect", "connected", "disconnected"]
-    url_template       = "https://func-wordle-multiplayer-dev.azurewebsites.net/runtime/webhooks/webpubsub?Code="
+    url_template       = "http://${azurerm_function_app.func.default_hostname}/runtime/webhooks/webpubsub?Code=${data.external.system_key_provisioner.result.key}"
     user_event_pattern = "*"
   }
   depends_on = [
     azurerm_web_pubsub.wps,
+    data.external.system_key_provisioner,
   ]
 }
 
@@ -77,6 +78,13 @@ resource "azurerm_function_app" "func" {
   depends_on = [
     azurerm_app_service_plan.asp-func,
   ]
+}
+
+data "external" "system_key_provisioner" {
+  program = ["powershell", "Set-ExecutionPolicy Bypass -Scope Process -Force; ./GetSystemKey.ps1"]
+  query = {
+    funcId = azurerm_function_app.func.id
+  }
 }
 
 resource "azurerm_storage_account" "store1" {
