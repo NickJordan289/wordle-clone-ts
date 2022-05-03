@@ -29,8 +29,55 @@ env:
   NODE_VERSION: "16.x" # set this to the node version to use
   AZURE_FUNCTIONAPP_NAME: func-wordle-multiplayer-dev  # set this to your application's name
   AZURE_FUNCTIONAPP_PACKAGE_PATH: "./backend" # set this to the path to your function app project, defaults to the repository root
+  TERRAFORM_DIR_PATH: "./terraform"
 
 jobs:
+  deploy-infra:
+    runs-on: ubuntu-latest
+    environment:
+      name: "Production"
+      
+    steps:
+      - uses: actions/checkout@v3
+      - name: HashiCorp - Setup Terraform
+        uses: hashicorp/setup-terraform@v2.0.0
+        
+      - name: Azure Login
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          enable-AzPSSession: true
+         
+      - name: 'Terraform Init'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.14.8
+          tf_actions_subcommand: 'init'
+          tf_actions_working_dir: ${{ env.TERRAFORM_DIR_PATH }}
+          args: '-backend-config "access_key=${{secrets.TF_VAR_BACKEND_KEY}}"'
+
+      - name: 'Terraform Validate'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.14.8
+          tf_actions_subcommand: 'validate'
+          tf_actions_working_dir: ${{ env.TERRAFORM_DIR_PATH }}
+
+      - name: 'Terraform Plan'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.14.8
+          tf_actions_subcommand: 'plan'
+          tf_actions_working_dir: ${{ env.TERRAFORM_DIR_PATH }}
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.14.8
+          tf_actions_subcommand: 'apply'
+          tf_actions_working_dir: ${{ env.TERRAFORM_DIR_PATH }}
+
   build-backend:
     runs-on: ubuntu-latest
     steps:
@@ -57,7 +104,7 @@ jobs:
           path: backend-release.zip
   
   deploy-backend:
-    needs: build-backend
+    needs: [build-backend,deploy-infra]
     runs-on: ubuntu-latest
     environment:
       name: "Production"
@@ -105,7 +152,7 @@ jobs:
           path: release.zip
 
   deploy-frontend:
-    needs: build-frontend
+    needs: [build-frontend,deploy-infra]
     runs-on: ubuntu-latest
     environment:
       name: "Production"
