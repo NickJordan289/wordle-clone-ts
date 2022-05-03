@@ -30,6 +30,10 @@ env:
   AZURE_FUNCTIONAPP_NAME: func-wordle-multiplayer-dev  # set this to your application's name
   AZURE_FUNCTIONAPP_PACKAGE_PATH: "./backend" # set this to the path to your function app project, defaults to the repository root
   TERRAFORM_DIR_PATH: "./terraform"
+  ARM_CLIENT_ID: ${{secrets.ARM_CLIENT_ID}}
+  ARM_CLIENT_SECRET: ${{secrets.ARM_CLIENT_SECRET}}
+  ARM_TENANT_ID: ${{secrets.ARM_TENANT_ID}}
+  ARM_SUBSCRIPTION_ID: ${{secrets.ARM_SUBSCRIPTION_ID}}
 
 jobs:
   deploy-infra:
