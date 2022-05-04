@@ -85,7 +85,7 @@ resource "azurerm_function_app" "func" {
 }
 
 data "external" "system_key_provisioner" {
-  program = ["pwsh", "Set-ExecutionPolicy Bypass -Scope Process -Force; ./GetSystemKey.ps1"]
+  program = ["bash", "get_system_key.sh"]
   query = {
     funcId = azurerm_function_app.func.id
   }
