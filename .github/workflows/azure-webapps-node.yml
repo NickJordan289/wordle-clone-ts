@@ -50,7 +50,10 @@ jobs:
           echo $GITHUB_PATH  
       
       - run: |
-          echo "/usr/bin/pwsh" >> $GITHUB_PATH
+          echo "/usr/bin/" >> $GITHUB_PATH
+          
+      - run: |
+          echo "/usr/bin/" >> $PATH
           
       - run: | 
           echo $GITHUB_PATH
