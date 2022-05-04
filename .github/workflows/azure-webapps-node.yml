@@ -52,11 +52,6 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: true
          
-      - name: Install PowerShell
-        uses: efrecon/gh-action-setup-powershell@main
-      - name: Print out PowerShell Version
-        run: pwsh --version
-
       - name: Azure PowerShell Action
         uses: Azure/powershell@v1
         with:
@@ -86,7 +81,6 @@ jobs:
           tf_actions_working_dir: ${{ env.TERRAFORM_DIR_PATH }}
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'
         uses: hashicorp/terraform-github-actions@master
         with:
           tf_actions_version: 0.14.8
