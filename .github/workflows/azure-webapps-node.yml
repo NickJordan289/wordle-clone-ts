@@ -46,6 +46,15 @@ jobs:
       - name: HashiCorp - Setup Terraform
         uses: hashicorp/setup-terraform@v2.0.0
         
+      - run: | 
+          echo $GITHUB_PATH  
+      
+      - run: |
+          echo "/usr/bin/pwsh" >> $GITHUB_PATH
+          
+      - run: | 
+          echo $GITHUB_PATH
+      
       - name: Azure Login
         uses: Azure/login@v1
         with:
