@@ -19,13 +19,15 @@ Play at https://app-wordle-multiplayer-dev-001.azurewebsites.net/
 - [System Key Provisioner (External Data Source)](https://github.com/NickJordan289/wordle-multiplayer-ts/blob/main/terraform/get_system_key.sh)
 - App Service
 - Function App
-- Ap Service plan x2
+- App Service plan x2
 - Application Insights
 - Storage account
 - Web PubSub Service
 
 ## Actions
 - [Terraform + Build + Deploy](https://github.com/NickJordan289/wordle-multiplayer-ts/actions/workflows/azure-webapps-node.yml)
+- ![image](https://user-images.githubusercontent.com/35259816/166934388-c687bd2f-ca20-4941-9470-6b34dece3aea.png)
+
 
 ## Configuration
 Actions Secrets
