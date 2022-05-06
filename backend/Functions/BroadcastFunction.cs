@@ -1,86 +1,27 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+﻿using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.WebPubSub;
 using Microsoft.Azure.WebPubSub.Common;
-using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using WordleMultiplayer.Models;
 using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
+using WordleMultiplayer.Models;
 
-namespace SimpleChat
+namespace WordleMultiplayer.Functions
 {
-    public static class Functions
+    public class BroadcastFunction
     {
-        [FunctionName("index")]
-        public static IActionResult Home([HttpTrigger(AuthorizationLevel.Anonymous)] HttpRequest req, ILogger log)
-        {
-            string indexFile = "index.html";
-            // detect Azure env.
-            if (Environment.GetEnvironmentVariable("HOME") != null)
-            {
-                indexFile = Path.Join(Environment.GetEnvironmentVariable("HOME"), "site", "wwwroot", indexFile);
-            }
-            log.LogInformation($"index.html path: {indexFile}.");
-            return new ContentResult
-            {
-                Content = File.ReadAllText(indexFile),
-                ContentType = "text/html",
-            };
-        }
-
-        [FunctionName("login")]
-        public static WebPubSubConnection GetClientConnection(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req,
-            [WebPubSubConnection(UserId = "{query.userid}", Hub = "%WebPubSubHub%")] WebPubSubConnection connection)
-        {
-            Console.WriteLine("login");
-            return connection;
-        }
-
-        #region Work with WebPubSubTrigger
-        [FunctionName("connect")]
-        public static WebPubSubEventResponse Connect(
-            [WebPubSubTrigger("%WebPubSubHub%", WebPubSubEventType.System, "connect")] ConnectEventRequest request)
-        {
-            Console.WriteLine($"Received client connect with connectionId: {request.ConnectionContext.ConnectionId}");
-            if (request.ConnectionContext.UserId == "attacker")
-            {
-                return request.CreateErrorResponse(WebPubSubErrorCode.Unauthorized, null);
-            }
-            return request.CreateResponse(request.ConnectionContext.UserId, null, null, null);
-        }
-
-        // multi tasks sample
-        [FunctionName("connected")]
-        public static async Task Connected(
-            [WebPubSubTrigger(WebPubSubEventType.System, "connected")] WebPubSubConnectionContext connectionContext,
-            [WebPubSub] IAsyncCollector<WebPubSubAction> actions)
-        //    [CosmosDB(
-        //databaseName: "Wordle",
-        //collectionName: "Users",
-        //ConnectionStringSetting = "CosmosDbConnectionString")]
-        //IAsyncCollector<dynamic> documentsOut)
-        {
-            await actions.AddAsync(new SendToAllAction
-            {
-                Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} connected.").ToString()),
-                DataType = WebPubSubDataType.Json
-            });
-
-            await actions.AddAsync(WebPubSubAction.CreateAddUserToGroupAction(connectionContext.UserId, "lobby"));
-            await actions.AddAsync(new SendToUserAction
-            {
-                UserId = connectionContext.UserId,
-                Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} joined group: lobby.").ToString()),
-                DataType = WebPubSubDataType.Json
-            });
-        }
-
-        // single message sample
+        /// <summary>
+        /// TODO: Needs to be deconstructed and implemented with cosmosdb
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="connectionContext"></param>
+        /// <param name="data"></param>
+        /// <param name="dataType"></param>
+        /// <param name="actions"></param>
+        /// <returns></returns>
         [FunctionName("broadcast")]
         public static async Task<WebPubSubEventResponse> Broadcast(
             [WebPubSubTrigger("%WebPubSubHub%", WebPubSubEventType.User, "message")] // another way to resolve Hub name from settings.
@@ -89,10 +30,6 @@ namespace SimpleChat
             BinaryData data,
             WebPubSubDataType dataType,
             [WebPubSub(Hub = "%WebPubSubHub%")] IAsyncCollector<WebPubSubAction> actions)
-            //[CosmosDB(
-            //    databaseName: "Wordle",
-            //    collectionName: "Users",
-            //    ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client)
         {
             var response = request.CreateResponse(BinaryData.FromString(new ClientContent($"ack").ToString()), WebPubSubDataType.Json);
             var states = new GroupState("lobby");
@@ -131,7 +68,7 @@ namespace SimpleChat
                     if (content.Content.Contains("join") || content.SystemAction.Contains("join"))
                     {
                         string groupName;
-                        if (content.Content.Contains("join")) 
+                        if (content.Content.Contains("join"))
                             groupName = content.Content.Split("join:")[1];
                         else
                             groupName = content.SystemAction.Split("join:")[1];
@@ -199,7 +136,7 @@ namespace SimpleChat
                         response.SetState(nameof(GroupState), BinaryData.FromObjectAsJson(states));
                     }
 
-                    
+
                 }
             }
             else
@@ -212,95 +149,6 @@ namespace SimpleChat
                 });
             }
             return response;
-        }
-
-        [FunctionName("disconnect")]
-        [return: WebPubSub(Hub = "%WebPubSubHub%")]
-        public static WebPubSubAction Disconnect(
-            [WebPubSubTrigger("sample_funcchat", WebPubSubEventType.System, "disconnected")] WebPubSubConnectionContext connectionContext)
-        {
-            Console.WriteLine("Disconnect.");
-            return new SendToAllAction
-            {
-                Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} disconnect.").ToString()),
-                DataType = WebPubSubDataType.Text
-            };
-        }
-
-        #endregion
-
-        [JsonObject]
-        private sealed class ClientContent
-        {
-            [JsonProperty("from")]
-            public string From { get; set; }
-
-            [JsonProperty("content")]
-            public string Content { get; set; }
-
-            [JsonProperty("is_system_action")]
-            public bool IsSystemAction { get; set; } = false;
-
-            [JsonProperty("system_action")]
-            public string SystemAction { get; set; } = "";
-
-            public ClientContent()
-            {
-
-            }
-
-            public ClientContent(string message)
-            {
-                From = "[System]";
-                Content = message;
-                IsSystemAction = false;
-                SystemAction = "";
-            }
-
-            public ClientContent(string from, string message)
-            {
-                From = from;
-                Content = message;
-                IsSystemAction = false;
-                SystemAction = "";
-            }
-
-            public ClientContent(string from, string message, bool issystemAction, string systemaction)
-            {
-                From = from;
-                Content = message;
-                IsSystemAction = issystemAction;
-                SystemAction = systemaction;
-            }
-
-            public override string ToString()
-            {
-                return JsonConvert.SerializeObject(this);
-            }
-        }
-
-        [JsonObject]
-        private sealed class GroupState
-        {
-            [JsonProperty("timestamp")]
-            public DateTime Timestamp { get; set; }
-            [JsonProperty("group")]
-            public string Group { get; set; }
-
-            public GroupState()
-            { }
-
-            public GroupState(string group)
-            {
-                Group = group;
-                Timestamp = DateTime.Now;
-            }
-
-            public void Update(string group)
-            {
-                Timestamp = DateTime.Now;
-                Group = group;
-            }
         }
     }
 }

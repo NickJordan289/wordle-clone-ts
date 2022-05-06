@@ -2,6 +2,13 @@ import React, { FormEvent, useEffect, useState } from "react";
 import "./App.css";
 import Guess from "./components/Guess";
 
+interface matchDetail {
+  matchId: string,
+  host: string,
+  guest:string,
+  targetWord : string,
+}
+
 function App() {
   const word_difficulty: number = 5;
   const [word, setWord] = useState<string>("");
@@ -9,29 +16,57 @@ function App() {
   const [opponentGrid, setOpponentGrid] = useState<Array<string>>([]);
   const [targetWord, setTargetWord] = useState<string>("");
   const [newWord, setNewWord] = useState<boolean>(true);
-  const [namePrompt, setNamePrompt] = useState<string>("host");
+  const [namePrompt, setNamePrompt] = useState<string>(randomString(5));
+  const [role, setRole] = useState<string>("client");
   const [groupPrompt, setGroupPrompt] = useState<string>("Lobby1");
+  const [inLobby, setInLobby] = useState<boolean>(true);
+
+
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
 
-  function push(w: string) {
+  const [matchDetails, setMatchDetails] = useState<matchDetail>();
+  useEffect(() => {
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: word,
+        is_system_action: true,
+        system_action: `join:${matchDetails?.matchId}`,
+      })
+    );
+  }, [matchDetails]);
+
+  function createGame(): void {
+    let details : matchDetail = {
+      matchId: namePrompt,
+      host: namePrompt,
+      guest: "",
+      targetWord: "",
+   };
+   getNewWord().then((w) => details.targetWord = w);
+   setMatchDetails(details)
+   setInLobby(false);
+  }
+
+  function push(w: string): void {
     if (w.length !== word_difficulty) return;
     setOpponentGrid((old) => [...old, w]);
   }
 
-  function getNewWord() {
-    fetch(
+  async function getNewWord(): Promise<string> {
+    return fetch(
       `https://random-word-api.herokuapp.com/word?length=${word_difficulty}`
     )
       .then((res) => res.json())
       .then((data) => {
-        setTargetWord(data[0]);
+        return data[0];
       });
   }
 
   useEffect(() => {
     if (newWord === true) {
-      getNewWord();
-      setNewWord(false);
+      getNewWord().then((w) => setTargetWord(w));
     }
   }, [newWord]);
 
@@ -53,14 +88,13 @@ function App() {
       })
     );
 
-    const target_word = targetWord;
     setGrid((grid) => {
       grid.push(word.toLowerCase());
       return grid;
     });
     setWord("");
 
-    if (word.toLowerCase() === target_word.toLowerCase()) {
+    if (word.toLowerCase() === targetWord.toLowerCase()) {
       alert("Correct!");
       setNewWord(true);
       setGrid([]);
@@ -74,128 +108,200 @@ function App() {
     setNewWord(true);
   };
 
-  const joinLobby = (event: FormEvent) => {
-    event.preventDefault();
-
+  useEffect(() => {
     fetch(
       `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
       { method: "POST" }
     )
       .then((res) => res.json())
       .then((data) => {
-        console.log(data.url);
         let new_ws = new WebSocket(data.url);
         new_ws.onopen = (e) => {
           console.log("Connected to websocket");
-          new_ws?.send(
-            JSON.stringify({
-              from: namePrompt,
-              content: "",
-              is_system_action: true,
-              system_action: `handshake`,
-            })
-          );
+          setIsConnected(true);
         };
         new_ws.onclose = (e) => {
           console.log("Disconnected from websocket");
+          setIsConnected(false);
         };
         new_ws.onerror = (e) => {
           console.log("Error with websocket");
+          setIsConnected(false);
         };
-        new_ws.onmessage = (e) => {
-          let data = JSON.parse(e.data);
-          console.log("Message received", data);
-          if (data.is_system_action) {
-            if (
-              namePrompt === "host" &&
-              data.system_action.includes("handshake")
-            ) {
-              console.log("Sending out sync");
-              new_ws?.send(
-                JSON.stringify({
-                  from: namePrompt,
-                  content: "",
-                  is_system_action: true,
-                  system_action: `sync:${targetWord}`,
-                })
-              );
-            } else if (data.system_action.includes("sync")) {
-              let sync_data = data.system_action.split(":");
-              setTargetWord(sync_data[1]);
-              setOpponentGrid([]);
-            }
-          } else {
-            if (
-              data.content &&
-              data.from !== namePrompt &&
-              data.from !== "[System]"
-            ) {
-              push(data.content.toLowerCase());
-            }
-          }
-        };
+        new_ws.onmessage = (e) => onMessageHandler(e);
         setWs(new_ws);
       });
+  }, []);
 
+  function randomString(length: number): string {
+    return Math.random()
+      .toString(36)
+      .replace(/[^a-z]+/g, "")
+      .substring(0, length);
+  }
+
+  function joinGame(gameId: string): void {
     ws?.send(
       JSON.stringify({
         from: namePrompt,
         content: word,
         is_system_action: true,
-        system_action: `join:${groupPrompt}`,
+        system_action: `join:${gameId}`,
       })
     );
-  };
+
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        is_system_action: true,
+        system_action: `handshake`,
+      })
+    );
+
+    setInLobby(false);
+    setGrid([]);
+    setOpponentGrid([]);
+  }
+
+  function leaveGame(): void {
+    setGroupPrompt("Lobby");
+    setRole("client");
+    joinGame("Lobby");
+    setInLobby(true);
+  }
+
+  function sendOutSync(): void {
+    console.log("Sending out sync");
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        is_system_action: true,
+        system_action: `sync:${targetWord}`,
+      })
+    );
+  }
+
+  function onMessageHandler(e: MessageEvent): void {
+    let data = JSON.parse(e.data);
+    //console.log("Message received", data);
+    if (data.is_system_action) {
+      console.log("System Action Received");
+      if (data.system_action.includes("handshake")) {
+        console.log(
+          `Handshake Received i am ${role} my name is ${namePrompt} and the group is ${groupPrompt}`
+        );
+        if (namePrompt == groupPrompt) {
+          sendOutSync();
+        }
+      } else if (data.system_action.includes("sync")) {
+        let sync_data = data.system_action.split(":");
+        setTargetWord(sync_data[1]);
+        setOpponentGrid([]);
+      }
+    } else {
+      if (
+        data.content &&
+        data.from !== namePrompt &&
+        data.from !== "[System]"
+      ) {
+        push(data.content.toLowerCase());
+      }
+    }
+  }
 
   return (
     <div className="App">
       <div className="App-header">
-        <p>{targetWord.length}</p>
-        <div className="multiplayer-contianer">
-          <div className="grid-container local-player">
-            {grid.map((row, i) => {
-              return (
-                <div key={i}>
-                  <Guess word={row} target_word={targetWord} opponent={false} />
-                </div>
-              );
-            })}
-
-            <Guess word={word} target_word="" opponent={false} />
-            <form>
+        <h1>Wordle Multiplayer</h1>
+        <h3>Connected: {isConnected ? "True" : "False"}</h3>
+        {inLobby ? (
+          <div className="lobby">
+            <p>Name: {namePrompt}</p>
+            <p>In Lobby</p>
+            <p>{role}</p>
+            <button type="button" className="btn btn-dark" onClick={createGame}>
+              Create Game
+            </button>
+            <br />
+            <div className="input-group mb-3">
               <input
                 type="text"
-                value={word}
-                onChange={handleChange}
-                onSubmit={handleSubmit}
-              />
-              <button onClick={handleSubmit}>Submit</button>
-              <button onClick={handleReset}>Reset</button>
-            </form>
-            <form>
-              <input
-                type="text"
-                value={namePrompt}
-                onChange={(e) => setNamePrompt(e.target.value)}
-              />
-              <input
-                type="text"
+                className="form-control"
+                placeholder="Game ID"
                 value={groupPrompt}
                 onChange={(e) => setGroupPrompt(e.target.value)}
               />
-              <button onClick={joinLobby}>Join {groupPrompt}</button>
-            </form>
+              <button
+                className="btn btn-outline-secondary"
+                type="button"
+                id="button-addon2"
+                onClick={(e) => joinGame(groupPrompt)}
+              >
+                Join Game
+              </button>
+            </div>
           </div>
-          <div className="grid-container">
-            {opponentGrid.map((row, i) => {
-              return (
-                <div key={i}>
-                  <Guess word={row} target_word={targetWord} opponent={true} />
-                </div>
-              );
-            })}
+        ) : (
+          <div className="game">
+            <p>Name: {namePrompt}</p>
+            <p>In {matchDetails?.matchId}</p>
+            <p>{role}</p>
+            <p>{matchDetails?.targetWord.length}</p>
+            <p>{matchDetails?.targetWord}</p>
+            <button
+              type="button"
+              className="btn btn-dark"
+              onClick={sendOutSync}
+            >
+              Sync
+            </button>
+            <button type="button" className="btn btn-dark" onClick={leaveGame}>
+              Leave Game
+            </button>
+            <div className="multiplayer-container">
+              <div className="grid-container local-player">
+                {grid.map((row, i) => {
+                  return (
+                    <div key={i}>
+                      <Guess
+                        word={row}
+                        target_word={targetWord}
+                        opponent={false}
+                      />
+                    </div>
+                  );
+                })}
+
+                <Guess word={word} target_word="" opponent={false} />
+                <form>
+                  <input
+                    type="text"
+                    value={word}
+                    onChange={handleChange}
+                    onSubmit={handleSubmit}
+                  />
+                  <button onClick={handleSubmit}>Submit</button>
+                  <button onClick={handleReset}>Reset</button>
+                </form>
+              </div>
+              <div className="grid-container">
+                {opponentGrid.map((row, i) => {
+                  return (
+                    <div key={i}>
+                      <Guess
+                        word={row}
+                        target_word={targetWord}
+                        opponent={true}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
