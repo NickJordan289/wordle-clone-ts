@@ -2,6 +2,13 @@ import React, { FormEvent, useEffect, useState } from "react";
 import "./App.css";
 import Guess from "./components/Guess";
 
+interface matchDetail {
+  matchId: string,
+  host: string,
+  guest:string,
+  targetWord : string,
+}
+
 function App() {
   const word_difficulty: number = 5;
   const [word, setWord] = useState<string>("");
@@ -14,28 +21,52 @@ function App() {
   const [groupPrompt, setGroupPrompt] = useState<string>("Lobby1");
   const [inLobby, setInLobby] = useState<boolean>(true);
 
+
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
+
+  const [matchDetails, setMatchDetails] = useState<matchDetail>();
+  useEffect(() => {
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: word,
+        is_system_action: true,
+        system_action: `join:${matchDetails?.matchId}`,
+      })
+    );
+  }, [matchDetails]);
+
+  function createGame(): void {
+    let details : matchDetail = {
+      matchId: namePrompt,
+      host: namePrompt,
+      guest: "",
+      targetWord: "",
+   };
+   getNewWord().then((w) => details.targetWord = w);
+   setMatchDetails(details)
+   setInLobby(false);
+  }
 
   function push(w: string): void {
     if (w.length !== word_difficulty) return;
     setOpponentGrid((old) => [...old, w]);
   }
 
-  function getNewWord(): void {
-    fetch(
+  async function getNewWord(): Promise<string> {
+    return fetch(
       `https://random-word-api.herokuapp.com/word?length=${word_difficulty}`
     )
       .then((res) => res.json())
       .then((data) => {
-        setTargetWord(data[0]);
+        return data[0];
       });
   }
 
   useEffect(() => {
     if (newWord === true) {
-      getNewWord();
-      setNewWord(false);
+      getNewWord().then((w) => setTargetWord(w));
     }
   }, [newWord]);
 
@@ -84,7 +115,6 @@ function App() {
     )
       .then((res) => res.json())
       .then((data) => {
-        console.log(data.url);
         let new_ws = new WebSocket(data.url);
         new_ws.onopen = (e) => {
           console.log("Connected to websocket");
@@ -108,14 +138,6 @@ function App() {
       .toString(36)
       .replace(/[^a-z]+/g, "")
       .substring(0, length);
-  }
-
-  function createGame(): void {
-    setGroupPrompt(namePrompt);
-    setRole("host");
-    setTargetWord(randomString(word_difficulty));
-    console.log(targetWord);
-    joinGame(namePrompt);
   }
 
   function joinGame(gameId: string): void {
@@ -149,20 +171,30 @@ function App() {
     setInLobby(true);
   }
 
+  function sendOutSync(): void {
+    console.log("Sending out sync");
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        is_system_action: true,
+        system_action: `sync:${targetWord}`,
+      })
+    );
+  }
+
   function onMessageHandler(e: MessageEvent): void {
     let data = JSON.parse(e.data);
-    console.log("Message received", data);
+    //console.log("Message received", data);
     if (data.is_system_action) {
-      if (data.system_action.includes("handshake") && targetWord !== "") {
-        console.log("Sending out sync");
-        ws?.send(
-          JSON.stringify({
-            from: namePrompt,
-            content: "",
-            is_system_action: true,
-            system_action: `sync:${targetWord}`,
-          })
+      console.log("System Action Received");
+      if (data.system_action.includes("handshake")) {
+        console.log(
+          `Handshake Received i am ${role} my name is ${namePrompt} and the group is ${groupPrompt}`
         );
+        if (namePrompt == groupPrompt) {
+          sendOutSync();
+        }
       } else if (data.system_action.includes("sync")) {
         let sync_data = data.system_action.split(":");
         setTargetWord(sync_data[1]);
@@ -214,9 +246,17 @@ function App() {
         ) : (
           <div className="game">
             <p>Name: {namePrompt}</p>
-            <p>In {groupPrompt}</p>
+            <p>In {matchDetails?.matchId}</p>
             <p>{role}</p>
-            <p>{targetWord.length}</p>
+            <p>{matchDetails?.targetWord.length}</p>
+            <p>{matchDetails?.targetWord}</p>
+            <button
+              type="button"
+              className="btn btn-dark"
+              onClick={sendOutSync}
+            >
+              Sync
+            </button>
             <button type="button" className="btn btn-dark" onClick={leaveGame}>
               Leave Game
             </button>
