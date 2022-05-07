@@ -1,19 +1,11 @@
 ﻿using Newtonsoft.Json;
+using SimpleChat.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace WordleMultiplayer.Models
 {
-    public enum ActionDefinition
-    {
-        Default,
-        Join,
-        Leave,
-        Create,
-        Guess
-    }
-
     [JsonObject]
     public class ClientContent
     {

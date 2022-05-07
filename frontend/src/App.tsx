@@ -10,11 +10,16 @@ interface matchDetail {
 }
 
 enum ActionDefinition {
-  Default,
-  Join,
-  Leave,
-  Create,
-  Guess
+  Default = "Default",
+  Join = "Join",
+  Leave = "Leave",
+  Create = "Create",
+  Guess = "Guess",
+}
+
+interface ResponseContent {
+  content : string,
+  action : ActionDefinition
 }
 
 function App() {
@@ -26,7 +31,7 @@ function App() {
   const [newWord, setNewWord] = useState<boolean>(true);
   const [namePrompt, setNamePrompt] = useState<string>(randomString(5));
   const [role, setRole] = useState<string>("client");
-  const [groupPrompt, setGroupPrompt] = useState<string>("Lobby1");
+  const [groupPrompt, setGroupPrompt] = useState<string>("lobby");
   const [inLobby, setInLobby] = useState<boolean>(true);
 
 
@@ -150,20 +155,36 @@ function App() {
     ws?.send(
       JSON.stringify({
         from: namePrompt,
-        content: word,
-        is_system_action: true,
-        system_action: `join:${gameId}`,
+        content: gameId,
+        action: ActionDefinition.Join,
       })
     );
   }
 
   function leaveGame(): void {
-    
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        action: ActionDefinition.Leave,
+      })
+    );
   }
 
   function onMessageHandler(e: MessageEvent): void {
-    let data = JSON.parse(e.data);
+    let data = JSON.parse(e.data) as ResponseContent;
     console.log("Message received", data);
+
+    switch (data.action) {
+      case ActionDefinition.Join:
+        setGroupPrompt(data.content);
+        setInLobby(data.content === "lobby");
+        break;
+    
+      default:
+        console.log("Other");
+        break;
+    }
   }
 
   return (
@@ -201,7 +222,7 @@ function App() {
         ) : (
           <div className="game">
             <p>Name: {namePrompt}</p>
-            <p>In {matchDetails?.matchId}</p>
+            <p>In {groupPrompt}</p>
             <p>{role}</p>
             <p>{matchDetails?.targetWord.length}</p>
             <p>{matchDetails?.targetWord}</p>

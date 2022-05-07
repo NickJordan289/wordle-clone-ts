@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using SimpleChat.Models;
 using WordleMultiplayer.Models;
 
 namespace WordleMultiplayer.Functions
@@ -26,6 +30,22 @@ namespace WordleMultiplayer.Functions
                 log.LogInformation("Documents modified " + input.Count);
                 log.LogInformation("First document Id " + input[0].Id);
             }
+        }
+
+        [FunctionName("test")]
+        public static async Task<IActionResult> TestAsync([HttpTrigger(AuthorizationLevel.Function)] HttpRequest req, ILogger log, [CosmosDB(
+                databaseName: "wordle",
+                collectionName: "games",
+                ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client)
+        {
+            var result = await GetRandomWordAsync();
+
+            var responseContent = new ResponseContent
+            {
+                Action = ActionDefinition.Guess,
+                Content = "Test"
+            };
+            return new OkObjectResult(responseContent.ToString());
         }
 
         [FunctionName("GetGames")]
