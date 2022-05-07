@@ -9,6 +9,14 @@ interface matchDetail {
   targetWord : string,
 }
 
+enum ActionDefinition {
+  Default,
+  Join,
+  Leave,
+  Create,
+  Guess
+}
+
 function App() {
   const word_difficulty: number = 5;
   const [word, setWord] = useState<string>("");
@@ -24,6 +32,31 @@ function App() {
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  useEffect(() => {
+    fetch(
+      `http://localhost:7071/api/login?userid=${namePrompt}`,
+      { method: "POST" }
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        let new_ws = new WebSocket(data.url);
+        console.log("Initializing websocket...");
+        new_ws.onopen = (e) => {
+          console.log("Connected to websocket");
+          setIsConnected(true);
+        };
+        new_ws.onclose = (e) => {
+          console.log("Disconnected from websocket");
+          setIsConnected(false);
+        };
+        new_ws.onerror = (e) => {
+          console.log("Error with websocket");
+          setIsConnected(false);
+        };
+        new_ws.onmessage = (e) => onMessageHandler(e);
+        setWs(new_ws);
+      });
+  }, []);
 
   const [matchDetails, setMatchDetails] = useState<matchDetail>();
   useEffect(() => {
@@ -38,15 +71,13 @@ function App() {
   }, [matchDetails]);
 
   function createGame(): void {
-    let details : matchDetail = {
-      matchId: namePrompt,
-      host: namePrompt,
-      guest: "",
-      targetWord: "",
-   };
-   getNewWord().then((w) => details.targetWord = w);
-   setMatchDetails(details)
-   setInLobby(false);
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        action: ActionDefinition.Create,
+      })
+    );
   }
 
   function push(w: string): void {
@@ -108,31 +139,6 @@ function App() {
     setNewWord(true);
   };
 
-  useEffect(() => {
-    fetch(
-      `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
-      { method: "POST" }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        let new_ws = new WebSocket(data.url);
-        new_ws.onopen = (e) => {
-          console.log("Connected to websocket");
-          setIsConnected(true);
-        };
-        new_ws.onclose = (e) => {
-          console.log("Disconnected from websocket");
-          setIsConnected(false);
-        };
-        new_ws.onerror = (e) => {
-          console.log("Error with websocket");
-          setIsConnected(false);
-        };
-        new_ws.onmessage = (e) => onMessageHandler(e);
-        setWs(new_ws);
-      });
-  }, []);
-
   function randomString(length: number): string {
     return Math.random()
       .toString(36)
@@ -149,66 +155,15 @@ function App() {
         system_action: `join:${gameId}`,
       })
     );
-
-    ws?.send(
-      JSON.stringify({
-        from: namePrompt,
-        content: "",
-        is_system_action: true,
-        system_action: `handshake`,
-      })
-    );
-
-    setInLobby(false);
-    setGrid([]);
-    setOpponentGrid([]);
   }
 
   function leaveGame(): void {
-    setGroupPrompt("Lobby");
-    setRole("client");
-    joinGame("Lobby");
-    setInLobby(true);
-  }
-
-  function sendOutSync(): void {
-    console.log("Sending out sync");
-    ws?.send(
-      JSON.stringify({
-        from: namePrompt,
-        content: "",
-        is_system_action: true,
-        system_action: `sync:${targetWord}`,
-      })
-    );
+    
   }
 
   function onMessageHandler(e: MessageEvent): void {
     let data = JSON.parse(e.data);
-    //console.log("Message received", data);
-    if (data.is_system_action) {
-      console.log("System Action Received");
-      if (data.system_action.includes("handshake")) {
-        console.log(
-          `Handshake Received i am ${role} my name is ${namePrompt} and the group is ${groupPrompt}`
-        );
-        if (namePrompt == groupPrompt) {
-          sendOutSync();
-        }
-      } else if (data.system_action.includes("sync")) {
-        let sync_data = data.system_action.split(":");
-        setTargetWord(sync_data[1]);
-        setOpponentGrid([]);
-      }
-    } else {
-      if (
-        data.content &&
-        data.from !== namePrompt &&
-        data.from !== "[System]"
-      ) {
-        push(data.content.toLowerCase());
-      }
-    }
+    console.log("Message received", data);
   }
 
   return (
@@ -250,13 +205,6 @@ function App() {
             <p>{role}</p>
             <p>{matchDetails?.targetWord.length}</p>
             <p>{matchDetails?.targetWord}</p>
-            <button
-              type="button"
-              className="btn btn-dark"
-              onClick={sendOutSync}
-            >
-              Sync
-            </button>
             <button type="button" className="btn btn-dark" onClick={leaveGame}>
               Leave Game
             </button>

@@ -12,6 +12,8 @@ namespace WordleMultiplayer.Models
         public DateTime Timestamp { get; set; }
         [JsonProperty("group")]
         public string Group { get; set; }
+        [JsonProperty("id")]
+        public string DbId { get; set; } = null;
 
         public GroupState()
         { }
