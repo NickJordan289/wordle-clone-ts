@@ -17,6 +17,7 @@ namespace WordleMultiplayer.Functions
 {
     public class BroadcastFunction
     {
+        static Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
         /// <summary>
         /// TODO: Needs to be deconstructed and implemented with cosmosdb
         /// </summary>
@@ -126,7 +127,6 @@ namespace WordleMultiplayer.Functions
 
                     game.Guesses.Add(guessRecord);
 
-                    Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
                     var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
 
                     responseContent = new ResponseContent
@@ -139,7 +139,7 @@ namespace WordleMultiplayer.Functions
                 {
                     responseContent = new ResponseContent
                     {
-                        Content = "",
+                        Content = states.Group,
                         Action = ActionDefinition.Guess
                     };
                 }
@@ -155,14 +155,22 @@ namespace WordleMultiplayer.Functions
 
         private static async Task<Game> GetGameByIdAsync(GroupState states, DocumentClient service)
         {
-            Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
+            // This needs fixing to not use a while loop
+            // Couldn't get the .Where filter to work
             var option = new FeedOptions { EnableCrossPartitionQuery = true };
             IDocumentQuery<Game> query = service.CreateDocumentQuery<Game>(collectionUri, option)
-                .Where(g => g.Name == states.Group)
                 .AsDocumentQuery();
 
-            var results = await query.ExecuteNextAsync();
-            return results.FirstOrDefault();
+            while (query.HasMoreResults)
+            {
+                foreach (Game result in await query.ExecuteNextAsync())
+                {
+                    if (result.Name == states.Group)
+                        return result;
+                }
+            }
+
+            return null;
         }
 
         private static async Task<ResponseContent> CreateGameAsync(ClientContent content, DocumentClient service)
@@ -170,12 +178,11 @@ namespace WordleMultiplayer.Functions
             string randomName = Guid.NewGuid().ToString().Replace("-","")[..10];
             string randomWord = await GetRandomWordAsync();
 
-            Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
             var documentResponse = await service.CreateDocumentAsync(collectionUri, new Game
             {
                 Name = randomName,
                 TargetWord = randomWord,
-                Description = "test game 2",
+                Description = "",
                 Guesses = new List<GuessRecord>()
             });
 

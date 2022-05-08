@@ -39,7 +39,7 @@ function App() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   useEffect(() => {
     fetch(
-      `http://localhost:7071/api/login?userid=${namePrompt}`,
+      `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
       { method: "POST" }
     )
       .then((res) => res.json())
@@ -48,14 +48,17 @@ function App() {
         console.log("Initializing websocket...");
         new_ws.onopen = (e) => {
           console.log("Connected to websocket");
+          console.log(e)
           setIsConnected(true);
         };
         new_ws.onclose = (e) => {
           console.log("Disconnected from websocket");
+          console.log(e)
           setIsConnected(false);
         };
         new_ws.onerror = (e) => {
           console.log("Error with websocket");
+          console.log(e)
           setIsConnected(false);
         };
         new_ws.onmessage = (e) => onMessageHandler(e);
@@ -119,8 +122,7 @@ function App() {
       JSON.stringify({
         from: namePrompt,
         content: word,
-        is_system_action: false,
-        system_action: "",
+        action: ActionDefinition.Guess,
       })
     );
 
