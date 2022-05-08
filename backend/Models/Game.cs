@@ -6,10 +6,9 @@ namespace WordleMultiplayer.Models
 {
     public class Game
     {
-        public Guid id { get; set; }
+        public Guid id { get; set; } = Guid.NewGuid();
         public string Name { get; set; }
         public string TargetWord { get; set; }
-        public string Description { get; set; }
         public List<GuessRecord> Guesses { get; set; }
     }
 }

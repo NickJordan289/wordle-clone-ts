@@ -137,10 +137,12 @@ namespace WordleMultiplayer.Functions
                 }
                 else
                 {
+                    // If lost connection to game
+                    // Join whats in the state object (probably lobby)
                     responseContent = new ResponseContent
                     {
                         Content = states.Group,
-                        Action = ActionDefinition.Guess
+                        Action = ActionDefinition.Join
                     };
                 }
             }
@@ -182,7 +184,6 @@ namespace WordleMultiplayer.Functions
             {
                 Name = randomName,
                 TargetWord = randomWord,
-                Description = "",
                 Guesses = new List<GuessRecord>()
             });
 

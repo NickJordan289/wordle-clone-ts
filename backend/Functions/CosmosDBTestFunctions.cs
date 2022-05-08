@@ -77,7 +77,6 @@ namespace WordleMultiplayer.Functions
 
             var response = await client.CreateDocumentAsync(collectionUri, new Game
             {
-                Description = "test game 2"
             });
 
         }
