@@ -5,25 +5,20 @@ import { ActionDefinition } from "./models/ActionDefinition";
 import { GuessRecord } from "./models/GuessRecord";
 import { ResponseContent } from "./models/ResponseContent";
 
-interface matchDetail {
-  matchId: string,
-  host: string,
-  guest:string,
-  targetWord : string,
-}
-
 function App() {
+  const namePrompt = randomString(5);
   const word_difficulty: number = 5;
+  
   const [word, setWord] = useState<string>("");
   const [grid, setGrid] = useState<Array<GuessRecord>>([]);
   const [opponentGrid, setOpponentGrid] = useState<Array<GuessRecord>>([]);
-  const [namePrompt, setNamePrompt] = useState<string>(randomString(5));
   const [groupPrompt, setGroupPrompt] = useState<string>("lobby");
   const [inLobby, setInLobby] = useState<boolean>(true);
 
-
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
+
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetch(
       `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
@@ -68,6 +63,7 @@ function App() {
   function pushGuess(g: GuessRecord): void {
     if (g.word.length !== word_difficulty) return;
     setGrid((old) => [...old, g]);
+    setOpponentGrid((old) => [...old, g]);
   }
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
