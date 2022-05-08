@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using SimpleChat.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,11 +15,8 @@ namespace WordleMultiplayer.Models
         [JsonProperty("content")]
         public string Content { get; set; }
 
-        [JsonProperty("is_system_action")]
-        public bool IsSystemAction { get; set; } = false;
-
-        [JsonProperty("system_action")]
-        public string SystemAction { get; set; } = "";
+        [JsonProperty("action")]
+        public ActionDefinition Action { get; set; }
 
         public ClientContent()
         {
@@ -29,24 +27,19 @@ namespace WordleMultiplayer.Models
         {
             From = "[System]";
             Content = message;
-            IsSystemAction = false;
-            SystemAction = "";
         }
 
         public ClientContent(string from, string message)
         {
             From = from;
             Content = message;
-            IsSystemAction = false;
-            SystemAction = "";
         }
 
-        public ClientContent(string from, string message, bool issystemAction, string systemaction)
+        public ClientContent(string from, string message, ActionDefinition action)
         {
             From = from;
             Content = message;
-            IsSystemAction = issystemAction;
-            SystemAction = systemaction;
+            Action = action;
         }
 
         public override string ToString()

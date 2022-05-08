@@ -5,14 +5,19 @@ using Newtonsoft.Json;
 using WordleMultiplayer.Models;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
-using WordleMultiplayer.Models;
+using SimpleChat.Models;
+using System.Net.Http;
+using System.Linq;
+using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace WordleMultiplayer.Functions
 {
     public class BroadcastFunction
     {
+        static Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
         /// <summary>
         /// TODO: Needs to be deconstructed and implemented with cosmosdb
         /// </summary>
@@ -29,9 +34,13 @@ namespace WordleMultiplayer.Functions
             WebPubSubConnectionContext connectionContext,
             BinaryData data,
             WebPubSubDataType dataType,
-            [WebPubSub(Hub = "%WebPubSubHub%")] IAsyncCollector<WebPubSubAction> actions)
+            [WebPubSub(Hub = "%WebPubSubHub%")] IAsyncCollector<WebPubSubAction> actions,
+            [CosmosDB(
+                databaseName: "wordle",
+                collectionName: "games",
+                ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client,
+             ILogger log)
         {
-            var response = request.CreateResponse(BinaryData.FromString(new ClientContent($"ack").ToString()), WebPubSubDataType.Json);
             var states = new GroupState("lobby");
             connectionContext.ConnectionStates.TryGetValue(nameof(GroupState), out var currentState);
             if (currentState != null)
@@ -40,115 +49,158 @@ namespace WordleMultiplayer.Functions
             }
 
             ClientContent content = JsonConvert.DeserializeObject<ClientContent>(data.ToString());
-            if (content != null && (content.Content.Contains("SystemAction") || content.IsSystemAction))
+
+            ResponseContent responseContent = new ResponseContent();
+            if (content.Action == ActionDefinition.Create)
             {
-                if (content.SystemAction.Contains("handshake"))
+                // Create game in cosmos db table
+                //
+
+                responseContent = await CreateGameAsync(content, client);
+                states.Update(responseContent.Content);
+            }
+            else if (content.Action == ActionDefinition.Join)
+            {
+                // Check if can join this lobby
+                //
+                Game game = await GetGameByIdAsync(states, client);
+                if (game != null)
                 {
-                    await actions.AddAsync(new SendToGroupAction
+                    responseContent = new ResponseContent
                     {
-                        Data = BinaryData.FromString(new ClientContent("[System]", "", true, $"handshake:{connectionContext.UserId}").ToString()),
-                        DataType = WebPubSubDataType.Json,
-                        Group = states.Group
-                    });
+                        Action = ActionDefinition.Join,
+                        Content = content.Content
+                    };
+                    states.Update(responseContent.Content);
                 }
-                else if (content.SystemAction.Contains("sync"))
+                else
                 {
-                    var targetWord = content.SystemAction.Split("sync:")[1];
-                    await actions.AddAsync(new SendToGroupAction
-                    {
-                        Data = BinaryData.FromString(new ClientContent("[System]", "", true, $"sync:{targetWord}").ToString()),
-                        DataType = WebPubSubDataType.Json,
-                        Group = states.Group
-                    });
+                    responseContent = new ResponseContent { Action = ActionDefinition.Default };
                 }
-                else if (content.Content.Contains("join") || content.Content.Contains("leave") || content.SystemAction.Contains("join") || content.SystemAction.Contains("leave"))
+            }
+            else if (content.Action == ActionDefinition.Leave)
+            {
+                // broadcast to opponent that user is leaving
+                //
+
+                responseContent = new ResponseContent
                 {
-                    var leaving = new RemoveUserFromGroupAction();
-                    var joining = new AddUserToGroupAction();
-                    if (content.Content.Contains("join") || content.SystemAction.Contains("join"))
+                    Action = ActionDefinition.Join,
+                    Content = "lobby"
+                };
+                states.Update(responseContent.Content);
+            }
+            else if (content.Action == ActionDefinition.Guess)
+            {
+                // Read group cosmosdb table
+                // Check guess against target word
+                // Update cosmosdb table
+                // Broadcast back to group
+
+                Game game = await GetGameByIdAsync(states, client);
+                if (game != null)
+                {
+                    var matches = new List<int>(game.TargetWord.Length);
+                    for (int i = 0; i < game.TargetWord.Length; i++)
                     {
-                        string groupName;
-                        if (content.Content.Contains("join"))
-                            groupName = content.Content.Split("join:")[1];
+                        var targetLetter = game.TargetWord[i];
+                        var letterGuess = content.Content[i];
+                        if (letterGuess == targetLetter)
+                        {
+                            matches.Add(1); // Green
+                        }
+                        else if (game.TargetWord.Contains(letterGuess))
+                        {
+                            matches.Add(2); // Yellow
+                        }
                         else
-                            groupName = content.SystemAction.Split("join:")[1];
-
-                        // Remove user from current group
-                        leaving.Group = states.Group;
-                        leaving.UserId = connectionContext.UserId;
-                        // Add user to new group
-                        joining.Group = groupName;
-                        joining.UserId = connectionContext.UserId;
-
-                        await actions.AddAsync(leaving);
-                        await actions.AddAsync(joining);
-
-                        // Message old group to say user has left
-                        await actions.AddAsync(new SendToGroupAction
                         {
-                            Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} left group.").ToString()),
-                            DataType = WebPubSubDataType.Json,
-                            Group = leaving.Group
-                        });
-
-                        // Message new group to say new user has joined
-                        await actions.AddAsync(new SendToGroupAction
-                        {
-                            Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} joined group: {joining.Group}.").ToString()),
-                            DataType = WebPubSubDataType.Json,
-                            Group = joining.Group
-                        });
-
-                        // Update group state
-                        states.Update(joining.Group);
-                        response.SetState(nameof(GroupState), BinaryData.FromObjectAsJson(states));
+                            matches.Add(0); // Nothing
+                        }
                     }
-                    else if ((content.Content.Contains("leave") || content.SystemAction.Contains("leave")) && states.Group != "lobby")
+
+                    var guessRecord = new GuessRecord
                     {
-                        // Remove user from current group
-                        leaving.Group = states.Group;
-                        leaving.UserId = connectionContext.UserId;
-                        // Add user to new group
-                        joining.Group = "lobby";
-                        joining.UserId = connectionContext.UserId;
+                        Score = matches,
+                        Word = content.Content
+                    };
 
-                        await actions.AddAsync(leaving);
-                        await actions.AddAsync(joining);
+                    game.Guesses.Add(guessRecord);
 
-                        // Message old group to say user has left
-                        await actions.AddAsync(new SendToGroupAction
-                        {
-                            Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} left group.").ToString()),
-                            DataType = WebPubSubDataType.Json,
-                            Group = leaving.Group
-                        });
+                    var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
 
-                        // Message new group to say new user has joined
-                        await actions.AddAsync(new SendToGroupAction
-                        {
-                            Data = BinaryData.FromString(new ClientContent($"{connectionContext.UserId} joined group: group2.").ToString()),
-                            DataType = WebPubSubDataType.Json,
-                            Group = joining.Group
-                        });
-
-                        // Update group state
-                        states.Update(joining.Group);
-                        response.SetState(nameof(GroupState), BinaryData.FromObjectAsJson(states));
-                    }
-
-
+                    responseContent = new ResponseContent
+                    {
+                        Content = JsonConvert.SerializeObject(guessRecord),
+                        Action = ActionDefinition.Guess
+                    };
+                }
+                else
+                {
+                    // If lost connection to game
+                    // Join whats in the state object (probably lobby)
+                    responseContent = new ResponseContent
+                    {
+                        Content = states.Group,
+                        Action = ActionDefinition.Join
+                    };
                 }
             }
-            else
-            {
-                await actions.AddAsync(new SendToGroupAction
-                {
-                    Data = request.Data,
-                    DataType = request.DataType,
-                    Group = states.Group
-                });
-            }
+
+            var response = request.CreateResponse(BinaryData.FromString(responseContent.ToString()), WebPubSubDataType.Json);
+            response.SetState(nameof(GroupState), BinaryData.FromObjectAsJson(states));
             return response;
+
+            //var response = request.CreateResponse(BinaryData.FromString(JsonConvert.ToString(states)), WebPubSubDataType.Json);
+            //return response;
+        }
+
+        private static async Task<Game> GetGameByIdAsync(GroupState states, DocumentClient service)
+        {
+            // This needs fixing to not use a while loop
+            // Couldn't get the .Where filter to work
+            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+            IDocumentQuery<Game> query = service.CreateDocumentQuery<Game>(collectionUri, option)
+                .AsDocumentQuery();
+
+            while (query.HasMoreResults)
+            {
+                foreach (Game result in await query.ExecuteNextAsync())
+                {
+                    if (result.Name == states.Group)
+                        return result;
+                }
+            }
+
+            return null;
+        }
+
+        private static async Task<ResponseContent> CreateGameAsync(ClientContent content, DocumentClient service)
+        {
+            string randomName = Guid.NewGuid().ToString().Replace("-","")[..10];
+            string randomWord = await GetRandomWordAsync();
+
+            var documentResponse = await service.CreateDocumentAsync(collectionUri, new Game
+            {
+                Name = randomName,
+                TargetWord = randomWord,
+                Guesses = new List<GuessRecord>()
+            });
+
+            return new ResponseContent
+            {
+                Action = ActionDefinition.Join,
+                Content = randomName
+            };
+        }
+
+        private static async Task<string> GetRandomWordAsync(int wordDifficulty=5)
+        {
+            var url = $"https://random-word-api.herokuapp.com/word?length={wordDifficulty}";
+            var client = new HttpClient();
+            var response = await client.GetAsync(url);
+            var words = await response.Content.ReadAsAsync<List<string>>();
+            return words.FirstOrDefault();
         }
     }
 }
