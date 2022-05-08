@@ -24,6 +24,8 @@ function App() {
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
+
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetch(
       `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
@@ -53,7 +55,7 @@ function App() {
         new_ws.onmessage = (e) => onMessageHandler(e);
         setWs(new_ws);
       });
-  }, []);
+  });
 
   function createGame(): void {
     ws?.send(
