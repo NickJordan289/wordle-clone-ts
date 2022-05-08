@@ -38,8 +38,6 @@ namespace WordleMultiplayer.Functions
                 collectionName: "games",
                 ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client)
         {
-            var result = await GetRandomWordAsync();
-
             var responseContent = new ResponseContent
             {
                 Action = ActionDefinition.Guess,
@@ -58,7 +56,7 @@ namespace WordleMultiplayer.Functions
             var option = new FeedOptions { EnableCrossPartitionQuery = true };
             IDocumentQuery<Game> query = client.CreateDocumentQuery<Game>(collectionUri, option)
                 .AsDocumentQuery();
-
+            
             while (query.HasMoreResults)
             {
                 foreach (Game result in await query.ExecuteNextAsync())

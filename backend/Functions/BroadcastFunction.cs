@@ -5,12 +5,13 @@ using Newtonsoft.Json;
 using WordleMultiplayer.Models;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
-using WordleMultiplayer.Models;
 using SimpleChat.Models;
 using System.Net.Http;
 using System.Linq;
+using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace WordleMultiplayer.Functions
 {
@@ -32,7 +33,12 @@ namespace WordleMultiplayer.Functions
             WebPubSubConnectionContext connectionContext,
             BinaryData data,
             WebPubSubDataType dataType,
-            [WebPubSub(Hub = "%WebPubSubHub%")] IAsyncCollector<WebPubSubAction> actions)
+            [WebPubSub(Hub = "%WebPubSubHub%")] IAsyncCollector<WebPubSubAction> actions,
+            [CosmosDB(
+                databaseName: "wordle",
+                collectionName: "games",
+                ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client,
+             ILogger log)
         {
             var states = new GroupState("lobby");
             connectionContext.ConnectionStates.TryGetValue(nameof(GroupState), out var currentState);
@@ -49,20 +55,27 @@ namespace WordleMultiplayer.Functions
                 // Create game in cosmos db table
                 //
 
-                responseContent = await CreateGameAsync(content);
+                responseContent = await CreateGameAsync(content, client);
                 states.Update(responseContent.Content);
             }
             else if (content.Action == ActionDefinition.Join)
             {
                 // Check if can join this lobby
                 //
-
-                responseContent = new ResponseContent
+                Game game = await GetGameByIdAsync(states, client);
+                if (game != null)
                 {
-                    Action = ActionDefinition.Join,
-                    Content = content.Content
-                };
-                states.Update(responseContent.Content);
+                    responseContent = new ResponseContent
+                    {
+                        Action = ActionDefinition.Join,
+                        Content = content.Content
+                    };
+                    states.Update(responseContent.Content);
+                }
+                else
+                {
+                    responseContent = new ResponseContent { Action = ActionDefinition.Default };
+                }
             }
             else if (content.Action == ActionDefinition.Leave)
             {
@@ -82,6 +95,54 @@ namespace WordleMultiplayer.Functions
                 // Check guess against target word
                 // Update cosmosdb table
                 // Broadcast back to group
+
+                Game game = await GetGameByIdAsync(states, client);
+                if (game != null)
+                {
+                    var matches = new List<int>(game.TargetWord.Length);
+                    for (int i = 0; i < game.TargetWord.Length; i++)
+                    {
+                        var targetLetter = game.TargetWord[i];
+                        var letterGuess = content.Content[i];
+                        if (letterGuess == targetLetter)
+                        {
+                            matches.Add(1); // Green
+                        }
+                        else if (game.TargetWord.Contains(letterGuess))
+                        {
+                            matches.Add(2); // Yellow
+                        }
+                        else
+                        {
+                            matches.Add(0); // Nothing
+                        }
+                    }
+
+                    var guessRecord = new GuessRecord
+                    {
+                        Score = matches,
+                        Word = content.Content
+                    };
+
+                    game.Guesses.Add(guessRecord);
+
+                    Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
+                    var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
+
+                    responseContent = new ResponseContent
+                    {
+                        Content = JsonConvert.SerializeObject(guessRecord),
+                        Action = ActionDefinition.Guess
+                    };
+                }
+                else
+                {
+                    responseContent = new ResponseContent
+                    {
+                        Content = "",
+                        Action = ActionDefinition.Guess
+                    };
+                }
             }
 
             var response = request.CreateResponse(BinaryData.FromString(responseContent.ToString()), WebPubSubDataType.Json);
@@ -92,10 +153,32 @@ namespace WordleMultiplayer.Functions
             //return response;
         }
 
-        private static async Task<ResponseContent> CreateGameAsync(ClientContent content)
+        private static async Task<Game> GetGameByIdAsync(GroupState states, DocumentClient service)
+        {
+            Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
+            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+            IDocumentQuery<Game> query = service.CreateDocumentQuery<Game>(collectionUri, option)
+                .Where(g => g.Name == states.Group)
+                .AsDocumentQuery();
+
+            var results = await query.ExecuteNextAsync();
+            return results.FirstOrDefault();
+        }
+
+        private static async Task<ResponseContent> CreateGameAsync(ClientContent content, DocumentClient service)
         {
             string randomName = Guid.NewGuid().ToString().Replace("-","")[..10];
             string randomWord = await GetRandomWordAsync();
+
+            Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
+            var documentResponse = await service.CreateDocumentAsync(collectionUri, new Game
+            {
+                Name = randomName,
+                TargetWord = randomWord,
+                Description = "test game 2",
+                Guesses = new List<GuessRecord>()
+            });
+
             return new ResponseContent
             {
                 Action = ActionDefinition.Join,

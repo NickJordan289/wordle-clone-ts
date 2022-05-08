@@ -1,11 +1,13 @@
-﻿using System;
+﻿using SimpleChat.Models;
 using System.Collections.Generic;
-using System.Text;
 
 namespace WordleMultiplayer.Models
 {
     public class Game
     {
+        public string Name { get; set; }
+        public string TargetWord { get; set; }
         public string Description { get; set; }
+        public List<GuessRecord> Guesses { get; set; }
     }
 }
