@@ -18,15 +18,7 @@ namespace WordleMultiplayer.Functions
     public class BroadcastFunction
     {
         static Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
-        /// <summary>
-        /// TODO: Needs to be deconstructed and implemented with cosmosdb
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="connectionContext"></param>
-        /// <param name="data"></param>
-        /// <param name="dataType"></param>
-        /// <param name="actions"></param>
-        /// <returns></returns>
+
         [FunctionName("broadcast")]
         public static async Task<WebPubSubEventResponse> Broadcast(
             [WebPubSubTrigger("%WebPubSubHub%", WebPubSubEventType.User, "message")] // another way to resolve Hub name from settings.
@@ -49,7 +41,6 @@ namespace WordleMultiplayer.Functions
                 states = currentState.ToObjectFromJson<GroupState>();
             }
 
-
             // Deserialize the client input
             ClientContent content = JsonConvert.DeserializeObject<ClientContent>(data.ToString());
 
@@ -61,9 +52,6 @@ namespace WordleMultiplayer.Functions
             }
             else if (content.Action == ActionDefinition.Join)
             {
-                // TODO:
-                // Check if can join this lobby
-                //
                 Game game = await GetGameByIdAsync(content.Content, client);
                 if (game != null && game.Players.Count < 2)
                 {
@@ -104,9 +92,6 @@ namespace WordleMultiplayer.Functions
             }
             else if (content.Action == ActionDefinition.Guess)
             {
-                // TODO:
-                // Broadcast back to group / opponent
-
                 Game game = await GetGameByIdAsync(states.Group, client);
                 if (game != null)
                 {

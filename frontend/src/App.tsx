@@ -19,7 +19,7 @@ function App() {
     else {
       setNamePrompt(name);
     }
-  }, [])
+  }, []);
 
   const [grid, setGrid] = useState<Array<GuessRecord>>([]);
   const [opponentGrid, setOpponentGrid] = useState<Array<GuessRecord>>([]);
@@ -62,20 +62,7 @@ function App() {
         new_ws.onmessage = (e) => onMessageHandler(e);
         setWs(new_ws);
       });
-  }, []);
-
-  function createGame(): void {
-    ws?.send(
-      JSON.stringify({
-        from: namePrompt,
-        content: "",
-        action: ActionDefinition.Create,
-      })
-    );
-
-    setGrid([]);
-    setOpponentGrid([]);
-  }
+  }, [namePrompt]);
 
   function pushGuess(g: GuessRecord): void {
     if (g.word === undefined || g.word === null || g.word === "")
@@ -83,10 +70,6 @@ function App() {
     else
       setGrid((old) => [...old, g]);
   }
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setWord(event.target.value);
-  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -104,37 +87,6 @@ function App() {
     setWord("");
   };
 
-  function randomString(length: number): string {
-    return Math.random()
-      .toString(36)
-      .replace(/[^a-z]+/g, "")
-      .substring(0, length);
-  }
-
-  function joinGame(gameId: string): void {
-    ws?.send(
-      JSON.stringify({
-        from: namePrompt,
-        content: gameId,
-        action: ActionDefinition.Join,
-      })
-    );
-    setGrid([]);
-    setOpponentGrid([]);
-  }
-
-  function leaveGame(): void {
-    ws?.send(
-      JSON.stringify({
-        from: namePrompt,
-        content: "",
-        action: ActionDefinition.Leave,
-      })
-    );
-    setGrid([]);
-    setOpponentGrid([]);
-  }
-
   function onMessageHandler(e: MessageEvent): void {
     let data = JSON.parse(e.data) as ResponseContent;
     console.log("Message received", data);
@@ -150,6 +102,51 @@ function App() {
         pushGuess(guess);
         break;
     }
+  }
+
+  function randomString(length: number): string {
+    return Math.random()
+      .toString(36)
+      .replace(/[^a-z]+/g, "")
+      .substring(0, length);
+  }
+
+  function createGame(): void {
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        action: ActionDefinition.Create,
+      })
+    );
+    reset();
+  }
+
+  function joinGame(gameId: string): void {
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: gameId,
+        action: ActionDefinition.Join,
+      })
+    );
+    reset();
+  }
+
+  function leaveGame(): void {
+    ws?.send(
+      JSON.stringify({
+        from: namePrompt,
+        content: "",
+        action: ActionDefinition.Leave,
+      })
+    );
+    reset();
+  }
+
+  function reset() : void {
+    setGrid([]);
+    setOpponentGrid([]);
   }
 
   return (
@@ -207,7 +204,7 @@ function App() {
                   <input
                     type="text"
                     value={word}
-                    onChange={handleChange}
+                    onChange={(e) => setWord(e.target.value)}
                     onSubmit={handleSubmit}
                   />
                   <button onClick={handleSubmit}>Submit</button>
