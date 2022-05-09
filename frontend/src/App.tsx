@@ -6,13 +6,27 @@ import { GuessRecord } from "./models/GuessRecord";
 import { ResponseContent } from "./models/ResponseContent";
 
 function App() {
-  const namePrompt = randomString(5);
   const word_difficulty: number = 5;
   
-  const [word, setWord] = useState<string>("");
+  const [namePrompt, setNamePrompt] = useState<string>("");
+  useEffect(() => {
+    let name = localStorage.getItem("name");
+    if (name === null) {
+      name = randomString(5);
+      localStorage.setItem('name', name);
+      setNamePrompt(name);
+    }
+    else {
+      setNamePrompt(name);
+    }
+  }, [])
+
   const [grid, setGrid] = useState<Array<GuessRecord>>([]);
   const [opponentGrid, setOpponentGrid] = useState<Array<GuessRecord>>([]);
+  
+  const [word, setWord] = useState<string>("");
   const [groupPrompt, setGroupPrompt] = useState<string>("lobby");
+
   const [inLobby, setInLobby] = useState<boolean>(true);
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -58,12 +72,16 @@ function App() {
         action: ActionDefinition.Create,
       })
     );
+
+    setGrid([]);
+    setOpponentGrid([]);
   }
 
   function pushGuess(g: GuessRecord): void {
-    if (g.word.length !== word_difficulty) return;
-    setGrid((old) => [...old, g]);
-    setOpponentGrid((old) => [...old, g]);
+    if (g.word === undefined)
+      setOpponentGrid((old) => [...old, g]);
+    else
+      setGrid((old) => [...old, g]);
   }
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,6 +119,8 @@ function App() {
         action: ActionDefinition.Join,
       })
     );
+    setGrid([]);
+    setOpponentGrid([]);
   }
 
   function leaveGame(): void {
@@ -111,6 +131,8 @@ function App() {
         action: ActionDefinition.Leave,
       })
     );
+    setGrid([]);
+    setOpponentGrid([]);
   }
 
   function onMessageHandler(e: MessageEvent): void {

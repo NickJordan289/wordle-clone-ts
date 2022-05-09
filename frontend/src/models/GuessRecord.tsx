@@ -1,4 +1,4 @@
 export interface GuessRecord {
-    word : string,
+    word? : string,
     score : number[],
 }
