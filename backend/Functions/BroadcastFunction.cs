@@ -47,7 +47,7 @@ namespace WordleMultiplayer.Functions
             ResponseContent responseContent = new ResponseContent();
             if (content.Action == ActionDefinition.Create)
             {
-                responseContent = await CreateGameAsync(connectionContext.UserId != null ? connectionContext.UserId : content.From, client);
+                responseContent = await CreateGameAsync(connectionContext, client);
                 states.Update(responseContent.Content);
             }
             else if (content.Action == ActionDefinition.Join)
@@ -196,7 +196,7 @@ namespace WordleMultiplayer.Functions
             return null;
         }
 
-        private static async Task<ResponseContent> CreateGameAsync(string creator, DocumentClient service)
+        private static async Task<ResponseContent> CreateGameAsync(WebPubSubConnectionContext creator, DocumentClient service)
         {
             string randomName = Guid.NewGuid().ToString().Replace("-", "")[..10];
             string randomWord = await GetRandomWordAsync();
@@ -206,7 +206,7 @@ namespace WordleMultiplayer.Functions
                 Name = randomName,
                 TargetWord = randomWord,
                 Guesses = new List<GuessRecord>(),
-                Players = new List<string> { creator }
+                Players = new List<string> { creator.UserId }
             });
 
             return new ResponseContent
