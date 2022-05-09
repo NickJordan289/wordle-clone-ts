@@ -41,6 +41,7 @@ namespace WordleMultiplayer.Functions
                 ConnectionStringSetting = "CosmosDBConnection")] DocumentClient client,
              ILogger log)
         {
+            // Retrieve group stored in state
             var states = new GroupState("lobby");
             connectionContext.ConnectionStates.TryGetValue(nameof(GroupState), out var currentState);
             if (currentState != null)
@@ -48,14 +49,13 @@ namespace WordleMultiplayer.Functions
                 states = currentState.ToObjectFromJson<GroupState>();
             }
 
+
+            // Deserialize the client input
             ClientContent content = JsonConvert.DeserializeObject<ClientContent>(data.ToString());
 
             ResponseContent responseContent = new ResponseContent();
             if (content.Action == ActionDefinition.Create)
             {
-                // Create game in cosmos db table
-                //
-
                 responseContent = await CreateGameAsync(content, client);
                 states.Update(responseContent.Content);
             }
@@ -63,7 +63,7 @@ namespace WordleMultiplayer.Functions
             {
                 // Check if can join this lobby
                 //
-                Game game = await GetGameByIdAsync(states, client);
+                Game game = await GetGameByIdAsync(content.Content, client);
                 if (game != null)
                 {
                     responseContent = new ResponseContent
@@ -80,6 +80,7 @@ namespace WordleMultiplayer.Functions
             }
             else if (content.Action == ActionDefinition.Leave)
             {
+                // TODO:
                 // broadcast to opponent that user is leaving
                 //
 
@@ -92,19 +93,17 @@ namespace WordleMultiplayer.Functions
             }
             else if (content.Action == ActionDefinition.Guess)
             {
-                // Read group cosmosdb table
-                // Check guess against target word
-                // Update cosmosdb table
-                // Broadcast back to group
+                // TODO:
+                // Broadcast back to group / opponent
 
-                Game game = await GetGameByIdAsync(states, client);
+                Game game = await GetGameByIdAsync(states.Group, client);
                 if (game != null)
                 {
                     var matches = new List<int>(game.TargetWord.Length);
                     for (int i = 0; i < game.TargetWord.Length; i++)
                     {
                         var targetLetter = game.TargetWord[i];
-                        var letterGuess = content.Content[i];
+                        var letterGuess = content.Content.ToLower()[i];
                         if (letterGuess == targetLetter)
                         {
                             matches.Add(1); // Green
@@ -122,13 +121,14 @@ namespace WordleMultiplayer.Functions
                     var guessRecord = new GuessRecord
                     {
                         Score = matches,
-                        Word = content.Content
+                        Word = content.Content.ToLower()
                     };
 
+                    // Upsert updated guess array
                     game.Guesses.Add(guessRecord);
-
                     var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
 
+                    // Return just the current guess to the caller 
                     responseContent = new ResponseContent
                     {
                         Content = JsonConvert.SerializeObject(guessRecord),
@@ -147,15 +147,20 @@ namespace WordleMultiplayer.Functions
                 }
             }
 
+            // Add WPS Action to swap groups
+            if (responseContent.Action == ActionDefinition.Join)
+            {
+                await actions.AddAsync(WebPubSubAction.CreateAddUserToGroupAction(connectionContext.UserId, responseContent.Content));
+            }
+
+            // Return response as json and store Group State
+            // goes back to the caller
             var response = request.CreateResponse(BinaryData.FromString(responseContent.ToString()), WebPubSubDataType.Json);
             response.SetState(nameof(GroupState), BinaryData.FromObjectAsJson(states));
             return response;
-
-            //var response = request.CreateResponse(BinaryData.FromString(JsonConvert.ToString(states)), WebPubSubDataType.Json);
-            //return response;
         }
 
-        private static async Task<Game> GetGameByIdAsync(GroupState states, DocumentClient service)
+        private static async Task<Game> GetGameByIdAsync(string gameid, DocumentClient service)
         {
             // This needs fixing to not use a while loop
             // Couldn't get the .Where filter to work
@@ -167,7 +172,7 @@ namespace WordleMultiplayer.Functions
             {
                 foreach (Game result in await query.ExecuteNextAsync())
                 {
-                    if (result.Name == states.Group)
+                    if (result.Name == gameid)
                         return result;
                 }
             }
