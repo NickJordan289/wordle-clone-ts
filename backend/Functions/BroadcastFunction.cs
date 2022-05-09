@@ -18,15 +18,7 @@ namespace WordleMultiplayer.Functions
     public class BroadcastFunction
     {
         static Uri collectionUri = UriFactory.CreateDocumentCollectionUri("wordle", "games");
-        /// <summary>
-        /// TODO: Needs to be deconstructed and implemented with cosmosdb
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="connectionContext"></param>
-        /// <param name="data"></param>
-        /// <param name="dataType"></param>
-        /// <param name="actions"></param>
-        /// <returns></returns>
+
         [FunctionName("broadcast")]
         public static async Task<WebPubSubEventResponse> Broadcast(
             [WebPubSubTrigger("%WebPubSubHub%", WebPubSubEventType.User, "message")] // another way to resolve Hub name from settings.
@@ -49,28 +41,29 @@ namespace WordleMultiplayer.Functions
                 states = currentState.ToObjectFromJson<GroupState>();
             }
 
-
             // Deserialize the client input
             ClientContent content = JsonConvert.DeserializeObject<ClientContent>(data.ToString());
 
             ResponseContent responseContent = new ResponseContent();
             if (content.Action == ActionDefinition.Create)
             {
-                responseContent = await CreateGameAsync(content, client);
+                responseContent = await CreateGameAsync(connectionContext, client);
                 states.Update(responseContent.Content);
             }
             else if (content.Action == ActionDefinition.Join)
             {
-                // Check if can join this lobby
-                //
                 Game game = await GetGameByIdAsync(content.Content, client);
-                if (game != null)
+                if (game != null && game.Players.Count < 2)
                 {
                     responseContent = new ResponseContent
                     {
                         Action = ActionDefinition.Join,
                         Content = content.Content
                     };
+
+                    game.Players.Add(connectionContext.UserId);
+                    var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
+
                     states.Update(responseContent.Content);
                 }
                 else
@@ -83,6 +76,12 @@ namespace WordleMultiplayer.Functions
                 // TODO:
                 // broadcast to opponent that user is leaving
                 //
+                Game game = await GetGameByIdAsync(content.Content, client);
+                if (game != null)
+                {
+                    game.Players.Remove(connectionContext.UserId);
+                    var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
+                }
 
                 responseContent = new ResponseContent
                 {
@@ -93,34 +92,31 @@ namespace WordleMultiplayer.Functions
             }
             else if (content.Action == ActionDefinition.Guess)
             {
-                // TODO:
-                // Broadcast back to group / opponent
-
                 Game game = await GetGameByIdAsync(states.Group, client);
                 if (game != null)
                 {
-                    var matches = new List<int>(game.TargetWord.Length);
+                    var score = new List<int>(game.TargetWord.Length);
                     for (int i = 0; i < game.TargetWord.Length; i++)
                     {
                         var targetLetter = game.TargetWord[i];
                         var letterGuess = content.Content.ToLower()[i];
                         if (letterGuess == targetLetter)
                         {
-                            matches.Add(1); // Green
+                            score.Add(1); // Green
                         }
                         else if (game.TargetWord.Contains(letterGuess))
                         {
-                            matches.Add(2); // Yellow
+                            score.Add(2); // Yellow
                         }
                         else
                         {
-                            matches.Add(0); // Nothing
+                            score.Add(0); // Nothing
                         }
                     }
 
                     var guessRecord = new GuessRecord
                     {
-                        Score = matches,
+                        Score = score,
                         Word = content.Content.ToLower()
                     };
 
@@ -134,6 +130,26 @@ namespace WordleMultiplayer.Functions
                         Content = JsonConvert.SerializeObject(guessRecord),
                         Action = ActionDefinition.Guess
                     };
+
+                    // If two players in this game send other player your guess
+                    if (game.Players.Count > 1)
+                    {
+                        var other = game.Players.Where(q => q != connectionContext.UserId).FirstOrDefault();
+                        await actions.AddAsync(new SendToUserAction
+                        {
+                            UserId = other,
+                            Data = BinaryData.FromString(JsonConvert.SerializeObject(new ResponseContent
+                            {
+                                Content = JsonConvert.SerializeObject(new GuessRecord
+                                {
+                                    Score = score,
+                                    Word = null
+                                }),
+                                Action = ActionDefinition.Guess
+                            })),
+                            DataType = WebPubSubDataType.Json
+                        });
+                    }
                 }
                 else
                 {
@@ -180,16 +196,17 @@ namespace WordleMultiplayer.Functions
             return null;
         }
 
-        private static async Task<ResponseContent> CreateGameAsync(ClientContent content, DocumentClient service)
+        private static async Task<ResponseContent> CreateGameAsync(WebPubSubConnectionContext creator, DocumentClient service)
         {
-            string randomName = Guid.NewGuid().ToString().Replace("-","")[..10];
+            string randomName = Guid.NewGuid().ToString().Replace("-", "")[..10];
             string randomWord = await GetRandomWordAsync();
 
             var documentResponse = await service.CreateDocumentAsync(collectionUri, new Game
             {
                 Name = randomName,
                 TargetWord = randomWord,
-                Guesses = new List<GuessRecord>()
+                Guesses = new List<GuessRecord>(),
+                Players = new List<string> { creator.UserId }
             });
 
             return new ResponseContent
@@ -199,7 +216,7 @@ namespace WordleMultiplayer.Functions
             };
         }
 
-        private static async Task<string> GetRandomWordAsync(int wordDifficulty=5)
+        private static async Task<string> GetRandomWordAsync(int wordDifficulty = 5)
         {
             var url = $"https://random-word-api.herokuapp.com/word?length={wordDifficulty}";
             var client = new HttpClient();
