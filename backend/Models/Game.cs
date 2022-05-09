@@ -10,5 +10,6 @@ namespace WordleMultiplayer.Models
         public string Name { get; set; }
         public string TargetWord { get; set; }
         public List<GuessRecord> Guesses { get; set; }
+        public List<string> Players { get; set; }
     }
 }

@@ -78,7 +78,7 @@ function App() {
   }
 
   function pushGuess(g: GuessRecord): void {
-    if (g.word === undefined)
+    if (g.word === undefined || g.word === null || g.word === "")
       setOpponentGrid((old) => [...old, g]);
     else
       setGrid((old) => [...old, g]);
