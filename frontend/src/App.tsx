@@ -29,6 +29,7 @@ function App() {
   const [word, setWord] = useState<string>("");
   const [groupPrompt, setGroupPrompt] = useState<string>("lobby");
 
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inLobby, setInLobby] = useState<boolean>(true);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [isWinner, setIsWinner] = useState<boolean>(false);
@@ -41,9 +42,12 @@ function App() {
     if (namePrompt === "" || namePrompt === null || namePrompt === undefined)
       return;
     if (ws !== null) ws?.close();
-    fetch(`http://localhost:7071/api/login?userid=${namePrompt}`, {
-      method: "POST",
-    })
+    fetch(
+      `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
+      {
+        method: "POST",
+      }
+    )
       .then((res) => res.json())
       .then((data) => {
         let new_ws = new WebSocket(data.url);
@@ -121,6 +125,7 @@ function App() {
         }
         break;
     }
+    setIsLoading(false);
   }
 
   function randomString(length: number): string {
@@ -138,6 +143,7 @@ function App() {
         action: ActionDefinition.Create,
       })
     );
+    setIsLoading(true);
     reset();
   }
 
@@ -149,6 +155,7 @@ function App() {
         action: ActionDefinition.Join,
       })
     );
+    setIsLoading(true);
     reset();
   }
 
@@ -160,6 +167,7 @@ function App() {
         action: ActionDefinition.Leave,
       })
     );
+    setIsLoading(true);
     reset();
   }
 
@@ -170,82 +178,119 @@ function App() {
     setOpponentGrid([]);
   }
 
+  function renderLobby(): JSX.Element {
+    return (
+      <div className="lobby">
+        <p>Name: {namePrompt}</p>
+        <p>In Lobby</p>
+        <button type="button" className="btn btn-dark" onClick={createGame}>
+          Create Game
+        </button>
+        <br />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            joinGame(groupPrompt);
+          }}
+        >
+          <div className="input-group mb-3">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Game ID"
+              value={groupPrompt}
+              onChange={(e) => setGroupPrompt(e.target.value)}
+            />
+            <button
+              className="btn btn-outline-secondary"
+              type="button"
+              id="button-addon2"
+              onClick={(e) => joinGame(groupPrompt)}
+            >
+              Join Game
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  function renderGame(): JSX.Element {
+    return (
+      <div className="game">
+        <p>Name: {namePrompt}</p>
+        <p>In {groupPrompt}</p>
+        <button type="button" className="btn btn-dark" onClick={leaveGame}>
+          Leave Game
+        </button>
+        <div className="multiplayer-container">
+          <div className="grid-container local-player">
+            {grid.map((row, i) => {
+              return (
+                <div key={i}>
+                  <Guess guess={row} opponent={false} />
+                </div>
+              );
+            })}
+            <form onSubmit={handleSubmit}>
+              <div className="input-group mb-3">
+                <input
+                  type="text"
+                  className="form-control"
+                  value={word}
+                  onChange={(e) => setWord(e.target.value)}
+                />
+                <button
+                  className="btn btn-outline-secondary"
+                  type="button"
+                  onClick={handleSubmit}
+                >
+                  Submit
+                </button>
+              </div>
+            </form>
+          </div>
+          <div className="grid-container">
+            {opponentGrid.map((row, i) => {
+              return (
+                <div key={i}>
+                  <Guess guess={row} opponent={true} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderLoading(): JSX.Element {
+    return (
+      <Spinner animation="border" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </Spinner>
+    );
+  }
+
+  function renderHandler(): JSX.Element {
+    if (inLobby) return renderLobby();
+    return renderGame();
+  }
+
   return (
     <div className="App">
       <div className="App-header">
         <h1>Wordle Multiplayer</h1>
         <h3>Connected: {isConnected ? "True" : "False"}</h3>
-        {inLobby ? (
-          <div className="lobby">
-            <p>Name: {namePrompt}</p>
-            <p>In Lobby</p>
-            <button type="button" className="btn btn-dark" onClick={createGame}>
-              Create Game
-            </button>
-            <br />
-            <div className="input-group mb-3">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Game ID"
-                value={groupPrompt}
-                onChange={(e) => setGroupPrompt(e.target.value)}
-              />
-              <button
-                className="btn btn-outline-secondary"
-                type="button"
-                id="button-addon2"
-                onClick={(e) => joinGame(groupPrompt)}
-              >
-                Join Game
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="game">
-            <p>Name: {namePrompt}</p>
-            <p>In {groupPrompt}</p>
-            <button type="button" className="btn btn-dark" onClick={leaveGame}>
-              Leave Game
-            </button>
-            <div className="multiplayer-container">
-              <div className="grid-container local-player">
-                {grid.map((row, i) => {
-                  return (
-                    <div key={i}>
-                      <Guess guess={row} opponent={false} />
-                    </div>
-                  );
-                })}
 
-                <form>
-                  <input
-                    type="text"
-                    value={word}
-                    onChange={(e) => setWord(e.target.value)}
-                    onSubmit={handleSubmit}
-                  />
-                  <button onClick={handleSubmit}>Submit</button>
-                </form>
-              </div>
-              <div className="grid-container">
-                {opponentGrid.map((row, i) => {
-                  return (
-                    <div key={i}>
-                      <Guess guess={row} opponent={true} />
-                    </div>
-                  );
-                })}
-              </div>
-              <GameOverModal
-                gameOver={gameOver}
-                isWinner={isWinner}
-                onClose={leaveGame}
-                onHide={() => setGameOver(false)}
-              />
-            </div>
-          </div>
-        )}
+        {!isConnected || isLoading ? renderLoading() : renderHandler()}
+
+        <GameOverModal
+          gameOver={gameOver}
+          isWinner={isWinner}
+          onClose={leaveGame}
+          onHide={() => setGameOver(false)}
+        />
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ export interface IGameOverModalProps {
 export default class GameOverModal extends React.Component<IGameOverModalProps> {
   public render() {
     return (
-      <Modal show={this.props.gameOver} onHide={}>
+      <Modal show={this.props.gameOver} onHide={this.props.onHide}>
         <Modal.Header closeButton>
           {this.props.isWinner ? (
             <Modal.Title>You Won!</Modal.Title>
