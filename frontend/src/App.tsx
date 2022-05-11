@@ -1,61 +1,67 @@
-import React, { FormEvent, useEffect, useState } from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
-import Guess from "./components/Guess";
+import { FormEvent, useEffect, useState } from "react";
 import { ActionDefinition } from "./models/ActionDefinition";
 import { GuessRecord } from "./models/GuessRecord";
 import { ResponseContent } from "./models/ResponseContent";
+import Guess from "./components/Guess";
+import GameOverModal from "./components/GameOverModal";
+import { Spinner } from "react-bootstrap";
 
 function App() {
   const word_difficulty: number = 5;
-  
+
   const [namePrompt, setNamePrompt] = useState<string>("");
   useEffect(() => {
     let name = localStorage.getItem("name");
     if (name === null) {
       name = randomString(5);
-      localStorage.setItem('name', name);
+      localStorage.setItem("name", name);
       setNamePrompt(name);
-    }
-    else {
+    } else {
       setNamePrompt(name);
     }
   }, []);
 
   const [grid, setGrid] = useState<Array<GuessRecord>>([]);
   const [opponentGrid, setOpponentGrid] = useState<Array<GuessRecord>>([]);
-  
+
   const [word, setWord] = useState<string>("");
   const [groupPrompt, setGroupPrompt] = useState<string>("lobby");
 
   const [inLobby, setInLobby] = useState<boolean>(true);
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [isWinner, setIsWinner] = useState<boolean>(false);
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    fetch(
-      `https://func-wordle-multiplayer-dev.azurewebsites.net/api/login?userid=${namePrompt}`,
-      { method: "POST" }
-    )
+    if (namePrompt === "" || namePrompt === null || namePrompt === undefined)
+      return;
+    if (ws !== null) ws?.close();
+    fetch(`http://localhost:7071/api/login?userid=${namePrompt}`, {
+      method: "POST",
+    })
       .then((res) => res.json())
       .then((data) => {
         let new_ws = new WebSocket(data.url);
         console.log("Initializing websocket...");
         new_ws.onopen = (e) => {
           console.log("Connected to websocket");
-          console.log(e)
+          console.log(e);
           setIsConnected(true);
         };
         new_ws.onclose = (e) => {
           console.log("Disconnected from websocket");
-          console.log(e)
+          console.log(e);
           setIsConnected(false);
           setInLobby(true);
         };
         new_ws.onerror = (e) => {
           console.log("Error with websocket");
-          console.log(e)
+          console.log(e);
           setIsConnected(false);
           setInLobby(true);
         };
@@ -67,8 +73,7 @@ function App() {
   function pushGuess(g: GuessRecord): void {
     if (g.word === undefined || g.word === null || g.word === "")
       setOpponentGrid((old) => [...old, g]);
-    else
-      setGrid((old) => [...old, g]);
+    else setGrid((old) => [...old, g]);
   }
 
   const handleSubmit = (event: FormEvent) => {
@@ -96,10 +101,24 @@ function App() {
         setGroupPrompt(data.content);
         setInLobby(data.content === "lobby");
         break;
-      
+
       case ActionDefinition.Guess:
         let guess = JSON.parse(data.content) as GuessRecord;
         pushGuess(guess);
+        if (guess.winner) {
+          if (
+            guess.word === undefined ||
+            guess.word === null ||
+            guess.word === ""
+          ) {
+            setIsWinner(false);
+            console.log("You lost!");
+          } else {
+            setIsWinner(true);
+            console.log("You won!");
+          }
+          setGameOver(true);
+        }
         break;
     }
   }
@@ -144,7 +163,9 @@ function App() {
     reset();
   }
 
-  function reset() : void {
+  function reset(): void {
+    setIsWinner(false);
+    setGameOver(false);
     setGrid([]);
     setOpponentGrid([]);
   }
@@ -192,10 +213,7 @@ function App() {
                 {grid.map((row, i) => {
                   return (
                     <div key={i}>
-                      <Guess
-                        guess={row}
-                        opponent={false}
-                      />
+                      <Guess guess={row} opponent={false} />
                     </div>
                   );
                 })}
@@ -214,14 +232,17 @@ function App() {
                 {opponentGrid.map((row, i) => {
                   return (
                     <div key={i}>
-                      <Guess
-                        guess={row}
-                        opponent={true}
-                      />
+                      <Guess guess={row} opponent={true} />
                     </div>
                   );
                 })}
               </div>
+              <GameOverModal
+                gameOver={gameOver}
+                isWinner={isWinner}
+                onClose={leaveGame}
+                onHide={() => setGameOver(false)}
+              />
             </div>
           </div>
         )}

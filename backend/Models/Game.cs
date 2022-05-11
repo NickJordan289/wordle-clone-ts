@@ -11,5 +11,6 @@ namespace WordleMultiplayer.Models
         public string TargetWord { get; set; }
         public List<GuessRecord> Guesses { get; set; }
         public List<string> Players { get; set; }
+        public GameStatus Status { get; set; } = GameStatus.Waiting;
     }
 }
