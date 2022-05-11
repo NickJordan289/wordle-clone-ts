@@ -62,6 +62,8 @@ namespace WordleMultiplayer.Functions
                     };
 
                     game.Players.Add(connectionContext.UserId);
+                    if (game.Players.Count == 2) game.Status = GameStatus.InProgress;
+
                     var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
 
                     states.Update(responseContent.Content);
@@ -95,33 +97,48 @@ namespace WordleMultiplayer.Functions
                 Game game = await GetGameByIdAsync(states.Group, client);
                 if (game != null)
                 {
-                    var score = new List<int>(game.TargetWord.Length);
-                    for (int i = 0; i < game.TargetWord.Length; i++)
+                    GuessRecord guessRecord;
+                    if (content.Content == game.TargetWord)
                     {
-                        var targetLetter = game.TargetWord[i];
-                        var letterGuess = content.Content.ToLower()[i];
-                        if (letterGuess == targetLetter)
+                        guessRecord = new GuessRecord
                         {
-                            score.Add(1); // Green
-                        }
-                        else if (game.TargetWord.Contains(letterGuess))
+                            Score = new List<int>(Enumerable.Repeat(1, game.TargetWord.Length)),
+                            Word = content.Content.ToLower(),
+                            Winner = true
+                        };
+                    }
+                    else
+                    {
+                        var score = new List<int>(game.TargetWord.Length);
+                        for (int i = 0; i < game.TargetWord.Length; i++)
                         {
-                            score.Add(2); // Yellow
+                            var targetLetter = game.TargetWord[i];
+                            var letterGuess = content.Content.ToLower()[i];
+                            if (letterGuess == targetLetter)
+                            {
+                                score.Add(1); // Green
+                            }
+                            else if (game.TargetWord.Contains(letterGuess))
+                            {
+                                score.Add(2); // Yellow
+                            }
+                            else
+                            {
+                                score.Add(0); // Nothing
+                            }
                         }
-                        else
+
+                        guessRecord = new GuessRecord
                         {
-                            score.Add(0); // Nothing
-                        }
+                            Score = score,
+                            Word = content.Content.ToLower()
+                        };
                     }
 
-                    var guessRecord = new GuessRecord
-                    {
-                        Score = score,
-                        Word = content.Content.ToLower()
-                    };
-
-                    // Upsert updated guess array
                     game.Guesses.Add(guessRecord);
+                    if (guessRecord.Winner) game.Status = GameStatus.Finished;
+
+                    // Upsert updated guess array + Status if changed
                     var upsertResponse = await client.UpsertDocumentAsync(collectionUri, game);
 
                     // Return just the current guess to the caller 
@@ -142,8 +159,9 @@ namespace WordleMultiplayer.Functions
                             {
                                 Content = JsonConvert.SerializeObject(new GuessRecord
                                 {
-                                    Score = score,
-                                    Word = null
+                                    Score = guessRecord.Score,
+                                    Word = null,
+                                    Winner = guessRecord.Winner
                                 }),
                                 Action = ActionDefinition.Guess
                             })),

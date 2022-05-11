@@ -8,5 +8,6 @@ namespace SimpleChat.Models
     {
         public string Word { get; set; }
         public List<int> Score { get; set; }
+        public bool Winner { get; set; } = false;
     }
 }
